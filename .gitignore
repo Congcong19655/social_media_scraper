@@ -1,0 +1,63 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+
+# Node.js
+node_modules/
+package-lock.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data and media (keep structure but not content)
+data/**/*.json
+!data/.gitkeep
+media/**/*
+!media/.gitkeep
+accounts/**/*.csv
+!accounts/.gitkeep
+!accounts/example.csv
+
+# Browser sessions
+sessions/**/*
+!sessions/.gitkeep
+!sessions/instagram/.gitkeep
+!sessions/linkedin/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+data/
+media/
+accounts/

@@ -1,0 +1,12 @@
+{
+  "name": "social-media-scraper",
+  "version": "0.1.0",
+  "description": "Node.js dependencies for Xiaohongshu signature generation",
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "jsdom": "^24.0.0"
+  },
+  "scripts": {
+    "install-deps": "npm install"
+  }
+}
