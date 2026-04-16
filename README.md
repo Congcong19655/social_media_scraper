@@ -45,6 +45,7 @@ graph TD
 - [Unified Social Media Scraper](#unified-social-media-scraper)
   - [Overview](#overview)
   - [Table of Contents](#table-of-contents)
+  - [Example Output](#example-output)
   - [Installation](#installation)
   - [Authentication](#authentication)
   - [Prepare Account List](#prepare-account-list)
@@ -67,6 +68,79 @@ graph TD
   - [Requirements](#requirements)
   - [Acknowledgments](#acknowledgments)
   - [License](#license)
+
+## Example Output
+
+Below is a compressed, anonymized example combining elements from multiple LLM-generated lead analyses:
+
+```markdown
+# Insurance Lead Analysis: Example_User
+
+Generated: 2026-04-16
+Date range: 2025-04-01 to 2025-12-31
+Sources: Instagram, Xiaohongshu, LinkedIn
+
+---
+
+## Profile Summary
+
+This early-career professional has an impressive academic background, with degrees from top universities in Asia and North America. They currently work in a skilled role (either finance or tech) at a reputable firm, with a stable income and clear career progression. They've lived in multiple countries and cities, demonstrating adaptability and a global perspective.
+
+In their personal life, they are an avid traveler who frequently documents international adventures on social media. They also value personal growth, sharing educational and career advice with their network. They are in a committed long-term relationship and are mindful about balancing career success with personal well-being.
+
+### Key Insights
+
+- Frequent international travel creates strong opportunities for comprehensive travel insurance with emergency medical coverage
+- Stable professional income makes disability income insurance a critical offering to protect their earning potential
+- Analytical, data-driven background means they respond best to transparent, clearly explained insurance options
+- Long-term committed relationship indicates life insurance could be a priority
+- Active social media presence suggests referral opportunities with their engaged network
+- Cross-border living experience may require specialized international coverage options
+
+---
+
+## Propensity Indicators
+
+| Indicator | Status |
+|-----------|--------|
+| Recent Travel | ✓ Yes |
+| Recent Marriage/Engagement | ✗ No |
+| New Child/Pregnancy | ✗ No |
+| New Job/Promotion | ✓ Yes |
+| New Home/Move | ✗ No |
+| Car Purchase | ✗ No |
+| Health Focus/Issues | ✗ No |
+| Sports/Hobbies | ✓ Yes |
+| Family-Focused | ✗ No |
+| Retirement Planning | ✗ No |
+
+---
+
+## Recommended Selling Points
+
+### Travel Insurance
+
+Given your frequent international travel to destinations across Europe, Asia, and the Americas, I recommend a comprehensive travel insurance plan that covers emergency medical care abroad, trip cancellation, lost luggage, and camera/gear protection. This will protect your travel investments and give you peace of mind during your adventures.
+
+**Why this matters**: International travel exposes you to unexpected risks like foreign medical emergencies and trip disruptions, and this plan will cover those costs so you don't face unexpected financial burdens.
+
+---
+
+### Disability Income Insurance
+
+As a full-time professional with a stable, competitive income, your ability to work is your most valuable financial asset. I recommend a tailored disability income insurance plan that replaces a portion of your monthly income if you become unable to work due to illness or injury.
+
+**Why this matters**: Your career relies entirely on your ability to work, so this insurance will prevent a career-altering injury or illness from derailing your financial progress.
+
+---
+
+### Term Life Insurance
+
+As an early-career professional building your long-term financial foundation and in a committed relationship, I recommend an affordable term life insurance plan. This low-cost plan provides tax-free financial protection for your loved ones with rates tailored to your current income level.
+
+**Why this matters**: You're just starting to build your long-term financial security, and term life insurance offers a low-barrier way to protect your loved ones without straining your current budget.
+```
+
 
 ## Installation
 
