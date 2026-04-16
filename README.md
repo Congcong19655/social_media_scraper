@@ -10,19 +10,63 @@ This project provides tools for insurance lead generation from social media data
 
 This repository **focuses primarily on Steps 2 & 3**, but also provides optional functionality for Step 1.
 
+```mermaid
+graph TD
+    A[Lead Discovery<br/>Optional] -->|Generate accounts CSV| B[Scrape Data<br/>Primary]
+    B --> C[LLM Analysis<br/>Primary]
+
+    subgraph Optional
+    A
+    A1[Scrape LinkedIn Connections]
+    A2[Scrape Instagram Followers]
+    A3[Scrape Instagram Following]
+    A4[Merge to Accounts CSV]
+    A1 --> A4
+    A2 --> A4
+    A3 --> A4
+    A4 --> A
+    end
+
+    subgraph Primary
+    B
+    B1[Scrape Posts/Profiles]
+    B1 --> B
+    C
+    C1[3-Agent LLM Pipeline]
+    C1 --> C
+    end
+
+    D[Account List CSV] --> B
+    B -->|Scraped JSON Data| C
+    C -->|Markdown + JSON| E[LLM_outputs/]
+```
+
 ## Table of Contents
-- [Installation](#installation)
-- [Authentication](#authentication)
-- [Prepare Account List](#prepare-account-list)
-- [Primary Usage](#primary-usage)
-  - [Scrape Data](#scrape-data)
-  - [LLM Analysis](#llm-analysis)
-  - [End-to-End Pipeline](#end-to-end-pipeline)
-- [Additional Functionality](#additional-functionality)
-  - [Lead Discovery](#lead-discovery)
-- [Directory Structure](#directory-structure)
-- [Project Structure](#project-structure)
-- [Acknowledgments](#acknowledgments)
+- [Unified Social Media Scraper](#unified-social-media-scraper)
+  - [Overview](#overview)
+  - [Table of Contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Authentication](#authentication)
+  - [Prepare Account List](#prepare-account-list)
+  - [Primary Usage](#primary-usage)
+    - [Scrape Data](#scrape-data)
+    - [LLM Analysis](#llm-analysis)
+    - [End-to-End Pipeline](#end-to-end-pipeline)
+  - [Additional Functionality](#additional-functionality)
+    - [Lead Discovery](#lead-discovery)
+      - [Scrape LinkedIn Connections](#scrape-linkedin-connections)
+      - [Scrape Instagram Followers](#scrape-instagram-followers)
+      - [Scrape Instagram Following](#scrape-instagram-following)
+      - [Merge All New Leads to Accounts CSV](#merge-all-new-leads-to-accounts-csv)
+      - [Convert Single Lead File to CSV](#convert-single-lead-file-to-csv)
+  - [Directory Structure](#directory-structure)
+  - [Output Structure](#output-structure)
+  - [Project Structure](#project-structure)
+  - [Features](#features)
+  - [Notes](#notes)
+  - [Requirements](#requirements)
+  - [Acknowledgments](#acknowledgments)
+  - [License](#license)
 
 ## Installation
 
@@ -171,17 +215,25 @@ This will:
 
 Optionally discover new leads by scraping your own social media connections/followers/following:
 
+**How it works**:
+1. Scraped connections are saved to `existing_connections/` (for future comparison)
+2. Automatically compares with previous scrape results to identify only new leads
+3. New leads are saved to `new_leads/` in both JSON and CSV formats
+
+**Note**:
+- **LinkedIn**: Lists connections reverse chronologically (latest first), so scraping the most recent 100 connections are enough for new connection discovery 
+- **Instagram**: Scrapes all followers/following by default because there is no orders 
+
 #### Scrape LinkedIn Connections
 
 ```bash
 uv run run.py scrape-linkedin-connections \
-  --max-connections 100 \
   --output existing_connections/linkedin \
   --new-leads-dir new_leads
 ```
 
 Options:
-- `--max-connections`: Maximum number of connections to scrape (default: all)
+- `--max-connections`: Maximum number of connections to scrape (default: 100)
 - `--output`: Directory to save connections (default: existing_connections/linkedin)
 - `--new-leads-dir`: Directory to save new leads (default: new_leads)
 - `--scrape-profiles`: Also scrape full profiles for new connections
@@ -190,17 +242,21 @@ Options:
 
 ```bash
 uv run run.py scrape-instagram-followers \
-  --username your_username \
-  --max-connections 100
+  --username your_username
 ```
+
+Options:
+- `--max-connections`: Maximum number of followers to scrape (default: all)
 
 #### Scrape Instagram Following
 
 ```bash
 uv run run.py scrape-instagram-following \
-  --username your_username \
-  --max-connections 100
+  --username your_username
 ```
+
+Options:
+- `--max-connections`: Maximum number of following to scrape (default: all)
 
 #### Merge All New Leads to Accounts CSV
 

@@ -116,7 +116,7 @@ async def _login_linkedin(session_file: str):
 @click.option("--session-file", default=None, help="LinkedIn session file path")
 @click.option("--scrape-profiles", is_flag=True, default=False, help="Also scrape full profiles for each connection")
 @click.option("--max-scrolls", default=500, help="Maximum number of scroll attempts to load connections")
-@click.option("--max-connections", default=None, type=int, help="Maximum number of connections to scrape (default: all)")
+@click.option("--max-connections", default=100, type=int, help="Maximum number of connections to scrape (default: 100)")
 @click.option("--existing-connections", default=None, help="Path to existing connections JSON file for comparison (looks in existing_connections/linkedin/ by default)")
 def scrape_linkedin_connections(output, new_leads_dir, session_file, scrape_profiles, max_scrolls, max_connections, existing_connections):
     """Scrape LinkedIn connections, compare with existing, and save new connections to new_leads/."""
