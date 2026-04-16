@@ -525,8 +525,8 @@ def scrape_followers(
     with authenticated_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
         profile_url = f"https://www.instagram.com/{username.strip().strip('/')}/"
-        page.goto(profile_url, wait_until="domcontentloaded", timeout=120000)
-        page.wait_for_timeout(2000)
+        page.goto(profile_url, wait_until="domcontentloaded", timeout=180000)
+        page.wait_for_timeout(8000)
 
         if _is_login_or_checkpoint(page.url):
             raise BrowserSessionError("Instagram redirected to login or checkpoint while opening the target profile.")
@@ -609,21 +609,9 @@ def scrape_followers(
                 # Get profile URL
                 profile_url = f"https://www.instagram.com/{current_username}/"
 
-                # Extract display name - collect all span[dir=auto] text
-                display_name = ""
-                display_candidates = item.locator(FOLLOWER_DISPLAY_NAME).all()
-                display_texts = [_clean_text(candidate.text_content()) for candidate in display_candidates if candidate.text_content()]
-                # Filter out empty and the username itself (first one is usually username, second is display name)
-                filtered = [t for t in display_texts if t and t != current_username]
-                if filtered:
-                    display_name = " ".join(filtered)
-                elif display_texts:
-                    display_name = display_texts[0]
-
                 # Create follower entry
                 follower = Follower(
                     username=current_username,
-                    display_name=display_name,
                     profile_url=profile_url,
                 )
                 followers.append(follower)
@@ -646,9 +634,17 @@ def scrape_followers(
             # Move mouse into the modal dialog so wheel events target the scrollable container
             modal_box = page.locator(FOLLOWER_MODAL).first
             if modal_box.is_visible():
-                # Click to focus the modal
-                modal_box.click(position={"x": 100, "y": 200})
-                page.wait_for_timeout(200)
+                # Click in the RIGHT SIDE but inside the box to avoid hovering over profile links
+                box_bounds = modal_box.bounding_box()
+                if box_bounds:
+                    # Click at 60% width, 30% height - right side but safely inside
+                    click_x = box_bounds["width"] * 0.6
+                    click_y = box_bounds["height"] * 0.3
+                    modal_box.click(position={"x": click_x, "y": click_y})
+                else:
+                    # Fallback to a safe position
+                    modal_box.click(position={"x": 300, "y": 150})
+                page.wait_for_timeout(300)
 
             # Just use mouse wheel scrolling - when modal is open, this naturally triggers Instagram's lazy load
             # Scroll multiple times to push for more content
@@ -680,8 +676,8 @@ def scrape_following(
     with authenticated_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
         profile_url = f"https://www.instagram.com/{username.strip().strip('/')}/"
-        page.goto(profile_url, wait_until="domcontentloaded", timeout=120000)
-        page.wait_for_timeout(2000)
+        page.goto(profile_url, wait_until="domcontentloaded", timeout=180000)
+        page.wait_for_timeout(8000)
 
         if _is_login_or_checkpoint(page.url):
             raise BrowserSessionError("Instagram redirected to login or checkpoint while opening the target profile.")
@@ -701,7 +697,7 @@ def scrape_following(
             raise ScrapeError(f"Could not find following link on profile `{username}`.")
 
         following_link.click()
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(4000)
 
         # Check if modal opened
         modal = page.locator(FOLLOWER_MODAL)
@@ -764,21 +760,9 @@ def scrape_following(
                 # Get profile URL
                 profile_url = f"https://www.instagram.com/{current_username}/"
 
-                # Extract display name - collect all span text
-                display_name = ""
-                display_candidates = item.locator(FOLLOWER_DISPLAY_NAME).all()
-                display_texts = [_clean_text(candidate.text_content()) for candidate in display_candidates if candidate.text_content()]
-                # Filter out empty and the username itself (first one is usually username, second is display name)
-                filtered = [t for t in display_texts if t and t != current_username]
-                if filtered:
-                    display_name = " ".join(filtered)
-                elif display_texts:
-                    display_name = display_texts[0]
-
                 # Create following entry
                 follower = Follower(
                     username=current_username,
-                    display_name=display_name,
                     profile_url=profile_url,
                 )
                 following.append(follower)
@@ -801,9 +785,17 @@ def scrape_following(
             # Move mouse into the modal dialog so wheel events target the scrollable container
             modal_box = page.locator(FOLLOWER_MODAL).first
             if modal_box.is_visible():
-                # Click to focus the modal
-                modal_box.click(position={"x": 100, "y": 200})
-                page.wait_for_timeout(200)
+                # Click in the RIGHT SIDE but inside the box to avoid hovering over profile links
+                box_bounds = modal_box.bounding_box()
+                if box_bounds:
+                    # Click at 60% width, 30% height - right side but safely inside
+                    click_x = box_bounds["width"] * 0.6
+                    click_y = box_bounds["height"] * 0.3
+                    modal_box.click(position={"x": click_x, "y": click_y})
+                else:
+                    # Fallback to a safe position
+                    modal_box.click(position={"x": 300, "y": 150})
+                page.wait_for_timeout(300)
 
             # Just use mouse wheel scrolling - when modal is open, this naturally triggers Instagram's lazy load
             # Scroll multiple times to push for more content

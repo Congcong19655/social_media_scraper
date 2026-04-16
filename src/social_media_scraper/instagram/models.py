@@ -36,7 +36,6 @@ class Post:
 @dataclass
 class Follower:
     username: str
-    display_name: str
     profile_url: str
 
     def to_dict(self) -> dict[str, Any]:

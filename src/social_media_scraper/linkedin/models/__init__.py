@@ -5,6 +5,7 @@ from .company import Company, CompanySummary, Employee
 from .job import Job
 from .post import Post
 from .activity import Activity
+from .connection import Connection
 
 __all__ = [
     "Person",
@@ -19,4 +20,5 @@ __all__ = [
     "Job",
     "Post",
     "Activity",
+    "Connection",
 ]

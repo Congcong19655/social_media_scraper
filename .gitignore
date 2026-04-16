@@ -47,8 +47,11 @@ media/**/*
 accounts/**/*.csv
 !accounts/.gitkeep
 !accounts/example.csv
-leads/**/*
-!leads/.gitkeep
+LLM_outputs/**/*
+!LLM_outputs/.gitkeep
+existing_connections/
+LLM_outputs
+new_leads
 
 # Browser sessions
 sessions/**/*

@@ -5,6 +5,8 @@ Commands: login-xiaohongshu, login-instagram, login-linkedin, scrape
 import asyncio
 import click
 import os
+import json
+from typing import Optional
 from dotenv import set_key
 from pathlib import Path
 from loguru import logger
@@ -106,6 +108,547 @@ async def _login_linkedin(session_file: str):
         json.dump(storage_state, f, indent=2)
     await browser.close()
     await p.stop()
+
+
+@main.command()
+@click.option("--output", default="existing_connections/linkedin", help="Output directory for JSON results (default: existing_connections/linkedin)")
+@click.option("--new-leads-dir", default="new_leads", help="Directory to save new connections (default: new_leads)")
+@click.option("--session-file", default=None, help="LinkedIn session file path")
+@click.option("--scrape-profiles", is_flag=True, default=False, help="Also scrape full profiles for each connection")
+@click.option("--max-scrolls", default=500, help="Maximum number of scroll attempts to load connections")
+@click.option("--max-connections", default=None, type=int, help="Maximum number of connections to scrape (default: all)")
+@click.option("--existing-connections", default=None, help="Path to existing connections JSON file for comparison (looks in existing_connections/linkedin/ by default)")
+def scrape_linkedin_connections(output, new_leads_dir, session_file, scrape_profiles, max_scrolls, max_connections, existing_connections):
+    """Scrape LinkedIn connections, compare with existing, and save new connections to new_leads/."""
+    project_root = get_project_root()
+    config = load_config(str(project_root))
+
+    if session_file is None:
+        session_file = config.linkedin.session_file
+
+    # If existing_connections is not provided, check for the latest file in output directory
+    if existing_connections is None:
+        output_path = Path(output)
+        if output_path.exists():
+            # Look for the most recent linkedin_connections.json
+            latest_file = output_path / "linkedin_connections.json"
+            if latest_file.exists():
+                existing_connections = str(latest_file)
+
+    click.echo(f"Scraping LinkedIn connections...")
+    click.echo(f"Output directory: {output}")
+    click.echo(f"New leads directory: {new_leads_dir}")
+    if max_connections:
+        click.echo(f"Max connections to scrape: {max_connections}")
+    else:
+        click.echo("Will scrape all connections")
+    if scrape_profiles:
+        click.echo("Will also scrape full profiles for each connection (this may take a while)")
+    if existing_connections:
+        click.echo(f"Will compare with existing connections at: {existing_connections}")
+    else:
+        click.echo("No existing connections found - will save all as new leads")
+
+    asyncio.run(_scrape_linkedin_connections(
+        output_dir=output,
+        new_leads_dir=new_leads_dir,
+        session_file=session_file,
+        scrape_profiles=scrape_profiles,
+        max_scrolls=max_scrolls,
+        max_connections=max_connections,
+        existing_connections_path=existing_connections,
+        config=config
+    ))
+
+
+async def _scrape_linkedin_connections(
+    output_dir: str,
+    new_leads_dir: str,
+    session_file: str,
+    scrape_profiles: bool,
+    max_scrolls: int,
+    max_connections: Optional[int],
+    existing_connections_path: Optional[str],
+    config,
+):
+    """Scrape LinkedIn connections, compare with existing, and save new connections to new_leads/."""
+    from social_media_scraper.linkedin.scraper import LinkedInScraper
+    from social_media_scraper.linkedin.utils import (
+        load_connections_from_file,
+        find_new_connections,
+        save_new_connections,
+    )
+    from datetime import datetime
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    new_leads_path = Path(new_leads_dir)
+    new_leads_path.mkdir(parents=True, exist_ok=True)
+
+    # Initialize LinkedIn scraper
+    linkedin_scraper = LinkedInScraper(
+        session_file=session_file,
+        headless=config.browser.headless
+    )
+
+    try:
+        # Step 1: FIRST load existing connections (before overwriting!)
+        existing_conns = []
+        if existing_connections_path:
+            existing_path = Path(existing_connections_path)
+            if existing_path.exists():
+                logger.info(f"Loading existing connections from {existing_connections_path}")
+                existing_conns = load_connections_from_file(existing_path)
+
+        # Step 2: Scrape connections list
+        if max_connections:
+            logger.info(f"Scraping connections list (max {max_connections})...")
+        else:
+            logger.info("Scraping all connections...")
+        connections = await linkedin_scraper.scrape_connections(
+            max_scrolls=max_scrolls,
+            max_connections=max_connections
+        )
+
+        if not connections:
+            logger.warning("No connections found")
+            return
+
+        scraped_at = datetime.now()
+
+        # Step 3: Compare with existing connections and save new connections to new_leads/
+        new_connections = connections
+        new_connections_objects = []
+        from social_media_scraper.linkedin.models import Connection
+
+        # Convert dict connections to Connection objects for comparison
+        all_new_conns_objects = []
+        for conn_dict in connections:
+            try:
+                conn = Connection(
+                    profile_url=conn_dict["profile_url"],
+                    profile_username=conn_dict.get("profile_username")
+                )
+                all_new_conns_objects.append(conn)
+            except Exception as e:
+                logger.warning(f"Could not convert connection: {e}")
+                continue
+
+        if existing_conns:
+            # Find new connections
+            new_connections_objects = find_new_connections(all_new_conns_objects, existing_conns)
+
+            # Convert back to dicts
+            new_connections = []
+            for conn in new_connections_objects:
+                new_connections.append({
+                    "profile_url": conn.profile_url,
+                    "profile_username": conn.profile_username
+                })
+        else:
+            # No existing connections, all are new
+            logger.info("No existing connections found, all are new")
+            new_connections_objects = all_new_conns_objects
+
+        # Save new connections to new_leads/
+        if new_connections_objects:
+            saved_file = save_new_connections(
+                new_connections_objects,
+                new_leads_path,
+                scraped_at=scraped_at.isoformat()
+            )
+            logger.info(f"Saved {len(new_connections_objects)} new connections to {saved_file}")
+
+            # Also convert to CSV format
+            from .csv_exporter import convert_leads_to_csv as _convert_leads_to_csv
+            csv_file = _convert_leads_to_csv(
+                leads_file=saved_file,
+                existing_csv=None,
+                output_csv=None
+            )
+            if csv_file:
+                logger.info(f"Also converted to CSV: {csv_file}")
+        else:
+            logger.info("No new connections found")
+
+        # Step 4: LAST - save current connections as the new "existing" for next time
+        connections_file = output_path / "linkedin_connections.json"
+        with open(connections_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "scraped_at": scraped_at.isoformat(),
+                "connections_count": len(connections),
+                "connections": connections,
+            }, f, ensure_ascii=False, indent=2)
+        logger.info(f"Saved {len(connections)} connections to {connections_file}")
+
+        # Step 2: Optionally scrape full profiles
+        if scrape_profiles:
+            profiles_dir = output_path / "linkedin_profiles"
+            profiles_dir.mkdir(parents=True, exist_ok=True)
+
+            logger.info(f"Scraping full profiles for {len(connections)} connections...")
+            successful = 0
+            failed = 0
+
+            for i, connection in enumerate(connections):
+                profile_username = connection.get("profile_username")
+                profile_url = connection.get("profile_url")
+                name = connection.get("name", f"connection_{i+1}")
+
+                if not profile_username and not profile_url:
+                    logger.warning(f"No profile identifier for {name}, skipping")
+                    failed += 1
+                    continue
+
+                identifier = profile_username or profile_url
+                logger.info(f"[{i+1}/{len(connections)}] Scraping profile for: {name}")
+
+                try:
+                    profile_data = await linkedin_scraper.scrape_profile(identifier)
+
+                    # Save individual profile
+                    clean_name = _clean_filename(name)
+                    profile_file = profiles_dir / f"{clean_name}.json"
+                    with open(profile_file, "w", encoding="utf-8") as f:
+                        json.dump({
+                            "scraped_at": datetime.now().isoformat(),
+                            "profile": profile_data,
+                        }, f, ensure_ascii=False, indent=2)
+
+                    successful += 1
+                    logger.info(f"Successfully scraped profile for: {name}")
+
+                except Exception as e:
+                    logger.error(f"Failed to scrape profile for {name}: {e}", exc_info=True)
+                    failed += 1
+
+            logger.info(f"Profile scraping complete: {successful} successful, {failed} failed")
+
+    finally:
+        # Cleanup
+        if linkedin_scraper:
+            await linkedin_scraper.close()
+
+    logger.info(f"\n==== LinkedIn connections scraping complete ====")
+    logger.info(f"Results saved to: {output_dir}")
+
+
+@main.command()
+@click.option("--username", required=True, help="Instagram username to scrape followers from")
+@click.option("--output", default="existing_connections/instagram_followers", help="Output directory for JSON results (default: existing_connections/instagram_followers)")
+@click.option("--new-leads-dir", default="new_leads", help="Directory to save new followers (default: new_leads)")
+@click.option("--session-dir", default=None, help="Instagram session directory")
+@click.option("--max-connections", default=None, type=int, help="Maximum number of followers to scrape (default: all)")
+@click.option("--existing-followers", default=None, help="Path to existing followers JSON file for comparison (looks in existing_connections/instagram_followers/ by default)")
+def scrape_instagram_followers(username, output, new_leads_dir, session_dir, max_connections, existing_followers):
+    """Scrape Instagram followers, compare with existing, and save new followers to new_leads/."""
+    project_root = get_project_root()
+    config = load_config(str(project_root))
+
+    if session_dir is None:
+        session_dir = config.instagram.session_dir
+
+    # If existing_followers is not provided, check for the latest file in output directory
+    if existing_followers is None:
+        output_path = Path(output)
+        if output_path.exists():
+            latest_file = output_path / "followers.json"
+            if latest_file.exists():
+                existing_followers = str(latest_file)
+
+    click.echo(f"Scraping Instagram followers for @{username}...")
+    click.echo(f"Output directory: {output}")
+    click.echo(f"New leads directory: {new_leads_dir}")
+    if max_connections:
+        click.echo(f"Max followers to scrape: {max_connections}")
+    else:
+        click.echo("Will scrape all followers")
+    if existing_followers:
+        click.echo(f"Will compare with existing followers at: {existing_followers}")
+    else:
+        click.echo("No existing followers found - will save all as new leads")
+
+    _scrape_instagram_followers(
+        username=username,
+        output_dir=output,
+        new_leads_dir=new_leads_dir,
+        session_dir=session_dir,
+        max_connections=max_connections,
+        existing_followers_path=existing_followers,
+        config=config
+    )
+
+
+def _scrape_instagram_followers(
+    username: str,
+    output_dir: str,
+    new_leads_dir: str,
+    session_dir: str,
+    max_connections: Optional[int],
+    existing_followers_path: Optional[str],
+    config,
+):
+    """Scrape Instagram followers, compare with existing, and save new followers to new_leads/."""
+    from social_media_scraper.instagram.cli import scrape_followers
+    from social_media_scraper.instagram.utils import (
+        load_users_from_file,
+        find_new_users,
+        save_new_users,
+        InstagramUser,
+    )
+    from datetime import datetime
+    import json
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    new_leads_path = Path(new_leads_dir)
+    new_leads_path.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: FIRST load existing followers (before overwriting!)
+    existing_users = []
+    if existing_followers_path:
+        existing_path = Path(existing_followers_path)
+        if existing_path.exists():
+            logger.info(f"Loading existing followers from {existing_followers_path}")
+            existing_users = load_users_from_file(existing_path)
+
+    # Step 2: Scrape followers list
+    if max_connections:
+        logger.info(f"Scraping followers (max {max_connections})...")
+    else:
+        logger.info("Scraping all followers...")
+
+    # Use the Instagram scraper's scrape_followers function
+    from social_media_scraper.instagram.scraper import scrape_followers
+    follower_count_text, followers_data = scrape_followers(
+        username=username,
+        limit=max_connections,
+        session_dir=Path(session_dir),
+    )
+
+    if not followers_data:
+        logger.warning("No followers found")
+        return
+
+    # Convert to InstagramUser objects
+    all_new_users = []
+    for follower in followers_data:
+        user = InstagramUser(
+            username=follower.username,
+            profile_url=follower.profile_url
+        )
+        all_new_users.append(user)
+
+    scraped_at = datetime.now()
+
+    # Step 3: Save current followers as the new "existing" for next time
+    followers_file = output_path / "followers.json"
+    with open(followers_file, "w", encoding="utf-8") as f:
+        json.dump({
+            "scraped_at": scraped_at.isoformat(),
+            "target_username": username,
+            "followers_count_text": follower_count_text,
+            "scraped_count": len(all_new_users),
+            "followers": [u.to_dict() for u in all_new_users],
+        }, f, ensure_ascii=False, indent=2)
+    logger.info(f"Saved {len(all_new_users)} followers to {followers_file}")
+
+    # Step 4: Compare with existing followers and save new followers to new_leads/
+    new_users = all_new_users
+    new_users_objects = []
+
+    if existing_users:
+        # Find new followers
+        new_users_objects = find_new_users(all_new_users, existing_users)
+    else:
+        # No existing followers, all are new
+        logger.info("No existing followers found, all are new")
+        new_users_objects = all_new_users
+
+    # Save new followers to new_leads/
+    if new_users_objects:
+        saved_file = save_new_users(
+            new_users_objects,
+            new_leads_path,
+            scraped_at=scraped_at.isoformat(),
+            user_type="followers"
+        )
+        logger.info(f"Saved {len(new_users_objects)} new followers to {saved_file}")
+
+        # Also convert to CSV format
+        from .csv_exporter import convert_leads_to_csv as _convert_leads_to_csv
+        csv_file = _convert_leads_to_csv(
+            leads_file=saved_file,
+            existing_csv=None,
+            output_csv=None
+        )
+        if csv_file:
+            logger.info(f"Also converted to CSV: {csv_file}")
+    else:
+        logger.info("No new followers found")
+
+    logger.info(f"\n==== Instagram followers scraping complete ====")
+    logger.info(f"Results saved to: {output_dir}")
+
+
+@main.command()
+@click.option("--username", required=True, help="Instagram username to scrape following from")
+@click.option("--output", default="existing_connections/instagram_following", help="Output directory for JSON results (default: existing_connections/instagram_following)")
+@click.option("--new-leads-dir", default="new_leads", help="Directory to save new following (default: new_leads)")
+@click.option("--session-dir", default=None, help="Instagram session directory")
+@click.option("--max-connections", default=None, type=int, help="Maximum number of following to scrape (default: all)")
+@click.option("--existing-following", default=None, help="Path to existing following JSON file for comparison (looks in existing_connections/instagram_following/ by default)")
+def scrape_instagram_following(username, output, new_leads_dir, session_dir, max_connections, existing_following):
+    """Scrape Instagram following, compare with existing, and save new following to new_leads/."""
+    project_root = get_project_root()
+    config = load_config(str(project_root))
+
+    if session_dir is None:
+        session_dir = config.instagram.session_dir
+
+    # If existing_following is not provided, check for the latest file in output directory
+    if existing_following is None:
+        output_path = Path(output)
+        if output_path.exists():
+            latest_file = output_path / "following.json"
+            if latest_file.exists():
+                existing_following = str(latest_file)
+
+    click.echo(f"Scraping Instagram following for @{username}...")
+    click.echo(f"Output directory: {output}")
+    click.echo(f"New leads directory: {new_leads_dir}")
+    if max_connections:
+        click.echo(f"Max following to scrape: {max_connections}")
+    else:
+        click.echo("Will scrape all following")
+    if existing_following:
+        click.echo(f"Will compare with existing following at: {existing_following}")
+    else:
+        click.echo("No existing following found - will save all as new leads")
+
+    _scrape_instagram_following(
+        username=username,
+        output_dir=output,
+        new_leads_dir=new_leads_dir,
+        session_dir=session_dir,
+        max_connections=max_connections,
+        existing_following_path=existing_following,
+        config=config
+    )
+
+
+def _scrape_instagram_following(
+    username: str,
+    output_dir: str,
+    new_leads_dir: str,
+    session_dir: str,
+    max_connections: Optional[int],
+    existing_following_path: Optional[str],
+    config,
+):
+    """Scrape Instagram following, compare with existing, and save new following to new_leads/."""
+    from social_media_scraper.instagram.scraper import scrape_following
+    from social_media_scraper.instagram.utils import (
+        load_users_from_file,
+        find_new_users,
+        save_new_users,
+        InstagramUser,
+    )
+    from datetime import datetime
+    import json
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    new_leads_path = Path(new_leads_dir)
+    new_leads_path.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: FIRST load existing following (before overwriting!)
+    existing_users = []
+    if existing_following_path:
+        existing_path = Path(existing_following_path)
+        if existing_path.exists():
+            logger.info(f"Loading existing following from {existing_following_path}")
+            existing_users = load_users_from_file(existing_path)
+
+    # Step 2: Scrape following list
+    if max_connections:
+        logger.info(f"Scraping following (max {max_connections})...")
+    else:
+        logger.info("Scraping all following...")
+
+    # Use the scrape_following function
+    following_count_text, following_data = scrape_following(
+        username=username,
+        limit=max_connections,
+        session_dir=Path(session_dir),
+    )
+
+    if not following_data:
+        logger.warning("No following found")
+        return
+
+    # Convert to InstagramUser objects
+    all_new_users = []
+    for following in following_data:
+        user = InstagramUser(
+            username=following.username,
+            profile_url=following.profile_url
+        )
+        all_new_users.append(user)
+
+    scraped_at = datetime.now()
+
+    # Step 3: Save current following as the new "existing" for next time
+    following_file = output_path / "following.json"
+    with open(following_file, "w", encoding="utf-8") as f:
+        json.dump({
+            "scraped_at": scraped_at.isoformat(),
+            "target_username": username,
+            "following_count_text": following_count_text,
+            "scraped_count": len(all_new_users),
+            "following": [u.to_dict() for u in all_new_users],
+        }, f, ensure_ascii=False, indent=2)
+    logger.info(f"Saved {len(all_new_users)} following to {following_file}")
+
+    # Step 4: Compare with existing following and save new following to new_leads/
+    new_users = all_new_users
+    new_users_objects = []
+
+    if existing_users:
+        # Find new following
+        new_users_objects = find_new_users(all_new_users, existing_users)
+    else:
+        # No existing following, all are new
+        logger.info("No existing following found, all are new")
+        new_users_objects = all_new_users
+
+    # Save new following to new_leads/
+    if new_users_objects:
+        saved_file = save_new_users(
+            new_users_objects,
+            new_leads_path,
+            scraped_at=scraped_at.isoformat(),
+            user_type="following"
+        )
+        logger.info(f"Saved {len(new_users_objects)} new following to {saved_file}")
+
+        # Also convert to CSV format
+        from .csv_exporter import convert_leads_to_csv as _convert_leads_to_csv
+        csv_file = _convert_leads_to_csv(
+            leads_file=saved_file,
+            existing_csv=None,
+            output_csv=None
+        )
+        if csv_file:
+            logger.info(f"Also converted to CSV: {csv_file}")
+    else:
+        logger.info("No new following found")
+
+    logger.info(f"\n==== Instagram following scraping complete ====")
+    logger.info(f"Results saved to: {output_dir}")
 
 
 @main.command()
@@ -382,16 +925,16 @@ async def _scrape_all(
 
 @main.command()
 @click.option("--input", required=True, help="Input data directory (usually data/)")
-@click.option("--output", required=True, help="Output directory for leads (usually leads/)")
+@click.option("--output", required=True, help="Output directory for LLM outputs (usually LLM_outputs/)")
 @click.option("--from-date", default=None, help="Filter content after this date (YYYY-MM-DD)")
 @click.option("--to-date", default=None, help="Filter content before this date (YYYY-MM-DD)")
 @click.option("--account", default=None, help="Only process specific account (for testing)")
 @click.option("--no-json", is_flag=True, default=False, help="Don't save JSON output, only markdown")
-def generate_leads(input, output, from_date, to_date, account, no_json):
-    """Generate insurance leads from already scraped data using Doubao LLM."""
-    from social_media_scraper.lead_generator.reader import ContentAggregator
-    from social_media_scraper.lead_generator.llm import DoubaoLeadClient
-    from social_media_scraper.lead_generator.processor import LeadProcessor
+def generate_llm_outputs(input, output, from_date, to_date, account, no_json):
+    """Generate insurance lead analysis from already scraped data using 3-agent Doubao LLM pipeline."""
+    from social_media_scraper.llm_analyzer.reader import ContentAggregator
+    from social_media_scraper.llm_analyzer.pipeline import ThreeAgentPipeline
+    from social_media_scraper.llm_analyzer.processor import LeadProcessor
 
     project_root = get_project_root()
     config = load_config(str(project_root))
@@ -417,7 +960,7 @@ def generate_leads(input, output, from_date, to_date, account, no_json):
 
     # Initialize components
     aggregator = ContentAggregator(input, from_date, to_date)
-    client = DoubaoLeadClient(
+    pipeline = ThreeAgentPipeline(
         api_key=config.doubao.api_key,
         endpoint=config.doubao.endpoint,
         model=config.doubao.model,
@@ -434,12 +977,11 @@ def generate_leads(input, output, from_date, to_date, account, no_json):
         logger.error(f"No accounts found in input directory: {input}")
         return
 
-    logger.info(f"Starting lead generation with {len(accounts)} accounts")
+    logger.info(f"Starting 3-agent lead generation with {len(accounts)} accounts")
     logger.info(f"Date range: {from_date} to {to_date}")
 
     successful = 0
     failed = 0
-    total_leads = 0
 
     for acc in accounts:
         logger.info(f"\n==== Processing account: {acc} ====")
@@ -452,32 +994,45 @@ def generate_leads(input, output, from_date, to_date, account, no_json):
                 failed += 1
                 continue
 
-            # Extract leads
-            leads, summary = client.extract_leads(aggregated)
-            total_leads += len(leads)
+            # Run 3-agent pipeline
+            profile_summary, structured_flags, selling_points = pipeline.run(aggregated)
 
             # Save output
             processor.process_and_save(
                 account_name=acc,
                 aggregated=aggregated,
-                leads=leads,
+                profile_summary=profile_summary,
+                structured_flags=structured_flags,
+                selling_points=selling_points,
                 from_date=from_date,
                 to_date=to_date,
                 save_json=not no_json,
-                summary=summary,
             )
 
             successful += 1
-            logger.info(f"Completed {acc}: {len(leads)} leads extracted")
+            sp_count = len(selling_points.selling_points) if selling_points else 0
+            logger.info(f"Completed {acc}: {sp_count} selling points generated")
 
         except Exception as e:
             logger.error(f"Failed to process {acc}: {e}", exc_info=True)
             failed += 1
 
-    logger.info(f"\n==== Lead generation complete ====")
+    logger.info(f"\n==== 3-agent lead generation complete ====")
     logger.info(f"Successful accounts: {successful}, Failed: {failed}")
-    logger.info(f"Total leads extracted across all accounts: {total_leads}")
     logger.info(f"Results saved to: {output}")
+
+
+# Backwards compatibility alias - just call the same function
+@main.command(name="generate-leads")
+@click.option("--input", required=True, help="Input data directory (usually data/)")
+@click.option("--output", required=True, help="Output directory for LLM outputs (usually LLM_outputs/)")
+@click.option("--from-date", default=None, help="Filter content after this date (YYYY-MM-DD)")
+@click.option("--to-date", default=None, help="Filter content before this date (YYYY-MM-DD)")
+@click.option("--account", default=None, help="Only process specific account (for testing)")
+@click.option("--no-json", is_flag=True, default=False, help="Don't save JSON output, only markdown")
+def generate_leads_alias(input, output, from_date, to_date, account, no_json):
+    """Alias for generate-llm-outputs (backwards compatibility)."""
+    return generate_llm_outputs.callback(input, output, from_date, to_date, account, no_json)
 
 
 @main.command()
@@ -767,10 +1322,10 @@ def pipeline(accounts, from_date, to_date, download_media, no_clean):
     logger.info("STEP 2: GENERATE LEADS")
     logger.info("="*50)
 
-    # Call generate_leads function directly
-    from social_media_scraper.lead_generator.reader import ContentAggregator
-    from social_media_scraper.lead_generator.llm import DoubaoLeadClient
-    from social_media_scraper.lead_generator.processor import LeadProcessor
+    # Call generate_leads function directly with 3-agent pipeline
+    from social_media_scraper.llm_analyzer.reader import ContentAggregator
+    from social_media_scraper.llm_analyzer.pipeline import ThreeAgentPipeline
+    from social_media_scraper.llm_analyzer.processor import LeadProcessor
 
     # Check Doubao config
     if not config.doubao:
@@ -779,12 +1334,12 @@ def pipeline(accounts, from_date, to_date, download_media, no_clean):
 
     # Initialize components
     aggregator = ContentAggregator("data/", from_date, to_date)
-    client = DoubaoLeadClient(
+    pipeline = ThreeAgentPipeline(
         api_key=config.doubao.api_key,
         endpoint=config.doubao.endpoint,
         model=config.doubao.model,
     )
-    processor = LeadProcessor("leads/")
+    processor = LeadProcessor("LLM_outputs/")
 
     # Get accounts
     accounts = aggregator.list_accounts()
@@ -793,12 +1348,11 @@ def pipeline(accounts, from_date, to_date, download_media, no_clean):
         logger.error(f"No accounts found in input directory: data/")
         return
 
-    logger.info(f"Starting lead generation with {len(accounts)} accounts")
+    logger.info(f"Starting 3-agent lead generation with {len(accounts)} accounts")
     logger.info(f"Date range: {from_date} to {to_date}")
 
     successful = 0
     failed = 0
-    total_leads = 0
 
     for acc in accounts:
         logger.info(f"\n==== Processing account: {acc} ====")
@@ -811,36 +1365,83 @@ def pipeline(accounts, from_date, to_date, download_media, no_clean):
                 failed += 1
                 continue
 
-            # Extract leads
-            leads, summary = client.extract_leads(aggregated)
-            total_leads += len(leads)
+            # Run 3-agent pipeline
+            profile_summary, structured_flags, selling_points = pipeline.run(aggregated)
 
             # Save output
             processor.process_and_save(
                 account_name=acc,
                 aggregated=aggregated,
-                leads=leads,
+                profile_summary=profile_summary,
+                structured_flags=structured_flags,
+                selling_points=selling_points,
                 from_date=from_date,
                 to_date=to_date,
                 save_json=True,
-                summary=summary,
             )
 
             successful += 1
-            logger.info(f"Completed {acc}: {len(leads)} leads extracted")
+            sp_count = len(selling_points.selling_points) if selling_points else 0
+            logger.info(f"Completed {acc}: {sp_count} selling points generated")
 
         except Exception as e:
             logger.error(f"Failed to process {acc}: {e}", exc_info=True)
             failed += 1
 
-    logger.info(f"\n==== Lead generation complete ====")
+    logger.info(f"\n==== 3-agent lead generation complete ====")
     logger.info(f"Successful accounts: {successful}, Failed: {failed}")
-    logger.info(f"Total leads extracted across all accounts: {total_leads}")
-    logger.info(f"Results saved to: leads/")
+    logger.info(f"Results saved to: LLM_outputs/")
 
     logger.info("\n" + "="*50)
     logger.info("PIPELINE COMPLETE!")
     logger.info("="*50)
+
+
+@main.command()
+@click.option("--new-leads-dir", default="new_leads", help="Directory containing new leads JSON files (default: new_leads)")
+@click.option("--accounts-csv", default="accounts/leads.csv", help="Path to accounts CSV file to update (default: accounts/leads.csv)")
+def merge_all_leads_to_accounts(new_leads_dir, accounts_csv):
+    """Merge all new leads JSON files into accounts CSV."""
+    from .csv_exporter import merge_all_leads_to_accounts_csv as _merge_all_leads
+
+    new_leads_path = Path(new_leads_dir)
+    accounts_path = Path(accounts_csv)
+
+    result = _merge_all_leads(
+        new_leads_dir=new_leads_path,
+        accounts_csv=accounts_path
+    )
+
+    if result:
+        logger.info(f"\n==== All leads merged to accounts CSV ====")
+        logger.info(f"Accounts CSV updated: {result}")
+    else:
+        logger.warning("No leads were merged")
+
+
+@main.command()
+@click.option("--leads-file", required=True, help="Path to new leads JSON file")
+@click.option("--existing-csv", default=None, help="Path to existing accounts CSV to merge with")
+@click.option("--output-csv", default=None, help="Path for output CSV (defaults to leads-file with .csv extension)")
+def convert_leads_to_csv(leads_file, existing_csv, output_csv):
+    """Convert new leads JSON to accounts CSV format."""
+    from .csv_exporter import convert_leads_to_csv as _convert_leads_to_csv
+
+    leads_path = Path(leads_file)
+    existing_path = Path(existing_csv) if existing_csv else None
+    output_path = Path(output_csv) if output_csv else None
+
+    result = _convert_leads_to_csv(
+        leads_file=leads_path,
+        existing_csv=existing_path,
+        output_csv=output_path
+    )
+
+    if result:
+        logger.info(f"\n==== Leads conversion complete ====")
+        logger.info(f"CSV saved to: {result}")
+    else:
+        logger.warning("No leads were converted")
 
 
 if __name__ == "__main__":

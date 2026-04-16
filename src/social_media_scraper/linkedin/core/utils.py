@@ -91,16 +91,32 @@ async def detect_rate_limit(page: Page) -> None:
         body_text = await page.locator('body').text_content(timeout=1000)
         if body_text:
             body_lower = body_text.lower()
-            if any(phrase in body_lower for phrase in [
-                'too many requests',
-                'rate limit',
-                'slow down',
-                'try again later'
-            ]):
-                raise RateLimitError(
-                    "Rate limit message detected on page.",
-                    suggested_wait_time=1800  # 30 minutes
-                )
+            # More specific checks that won't false-positive
+            if 'too many requests' in body_lower or 'rate limit' in body_lower:
+                # Check if these phrases are in the context of an error message
+                # Look for common error containers
+                error_selectors = [
+                    '.artdeco-inline-message--error',
+                    '.artdeco-alert--error',
+                    '#error-container',
+                    '[class*="error"]'
+                ]
+                found_in_error = False
+                for selector in error_selectors:
+                    try:
+                        error_text = await page.locator(selector).text_content(timeout=500) or ""
+                        error_text = error_text.lower()
+                        if 'too many requests' in error_text or 'rate limit' in error_text:
+                            found_in_error = True
+                            break
+                    except:
+                        continue
+
+                if found_in_error:
+                    raise RateLimitError(
+                        "Rate limit message detected on page.",
+                        suggested_wait_time=1800  # 30 minutes
+                    )
     except PlaywrightTimeoutError:
         pass
 

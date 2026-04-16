@@ -3,13 +3,15 @@ LinkedIn scraper wrapper that exposes profile scraping with session handling.
 """
 import json
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pathlib import Path
 from loguru import logger
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
 from .scrapers.person import PersonScraper
+from .scrapers.connections import ConnectionsScraper
 from .models.person import Person as LinkedInPerson
+from .models.connection import Connection as LinkedInConnection
 
 
 class LinkedInScraper:
@@ -61,18 +63,26 @@ class LinkedInScraper:
         self._page = await self._context.new_page()
         logger.info("Browser initialized")
 
-    async def scrape_profile(self, profile_url: str) -> Dict[str, Any]:
+    async def scrape_profile(self, profile_identifier: str) -> Dict[str, Any]:
         """
         Scrape a LinkedIn profile.
 
         Args:
-            profile_url: LinkedIn profile URL
+            profile_identifier: LinkedIn profile URL OR just the username
+                (e.g., "zhuminghui17" or "https://www.linkedin.com/in/zhuminghui17")
 
         Returns:
             Scraped profile data as dictionary
         """
         if not self._page:
             await self._initialize_browser()
+
+        # Convert username to full URL if needed
+        if profile_identifier.startswith("http"):
+            profile_url = profile_identifier
+        else:
+            # Assume it's a username, build the full URL
+            profile_url = f"https://www.linkedin.com/in/{profile_identifier}"
 
         scraper = PersonScraper(self._page)
         person_data = await scraper.scrape(profile_url)
@@ -132,6 +142,36 @@ class LinkedInScraper:
                 } for contact in (person.contacts or [])
             ],
         }
+
+    def _connection_to_dict(self, connection: LinkedInConnection) -> Dict[str, Any]:
+        """Convert LinkedInConnection model to dictionary."""
+        return {
+            "profile_url": connection.profile_url,
+            "profile_username": connection.profile_username,
+        }
+
+    async def scrape_connections(self, max_scrolls: int = 500, max_connections: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Scrape LinkedIn connections list.
+
+        Args:
+            max_scrolls: Maximum number of scroll attempts to load all connections
+            max_connections: Maximum number of connections to scrape (None = all)
+
+        Returns:
+            List of connection dictionaries
+        """
+        if not self._page:
+            await self._initialize_browser()
+
+        scraper = ConnectionsScraper(self._page)
+        connections = await scraper.scrape(max_scrolls=max_scrolls, max_connections=max_connections)
+
+        # Convert to dictionaries
+        result = [self._connection_to_dict(conn) for conn in connections]
+        logger.info(f"Successfully scraped {len(result)} connections")
+
+        return result
 
     async def save_session(self) -> None:
         """Save current browser session to file."""
