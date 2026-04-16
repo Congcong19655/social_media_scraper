@@ -47,6 +47,8 @@ media/**/*
 accounts/**/*.csv
 !accounts/.gitkeep
 !accounts/example.csv
+leads/**/*
+!leads/.gitkeep
 
 # Browser sessions
 sessions/**/*

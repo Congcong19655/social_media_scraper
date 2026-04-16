@@ -42,7 +42,7 @@ def scrape_profile(
     with authenticated_context(session_dir, headless=headless) as context:
         page = context.pages[0] if context.pages else context.new_page()
         profile_url = f"https://www.instagram.com/{username.strip().strip('/')}/"
-        page.goto(profile_url, wait_until="domcontentloaded")
+        page.goto(profile_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(1500)
 
         if _is_login_or_checkpoint(page.url):
@@ -176,7 +176,7 @@ def extract_post_date(context, post_url: str) -> date | None:
     page = context.new_page()
     try:
         normalized_post_url = _normalize_post_url(post_url)
-        page.goto(normalized_post_url, wait_until="domcontentloaded")
+        page.goto(normalized_post_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(400)  # Faster timeout for just timestamp extraction
         html = page.content()
         soup = BeautifulSoup(html, "html.parser")
@@ -196,7 +196,7 @@ def scrape_post(context, post_url: str) -> Post:
     page = context.new_page()
     try:
         normalized_post_url = _normalize_post_url(post_url)
-        page.goto(normalized_post_url, wait_until="domcontentloaded")
+        page.goto(normalized_post_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(1000)
         post = parse_post_html(page.content(), normalized_post_url)
         post.media_urls = _extract_post_media_urls(page, normalized_post_url, post.media_type)
@@ -376,7 +376,7 @@ def _extract_carousel_media_urls(page, post_url: str, max_slides: int = 10) -> l
         urls.append(first_media_url)
 
     for img_index in range(2, max_slides + 1):
-        page.goto(f"{base_post_url}?img_index={img_index}", wait_until="domcontentloaded")
+        page.goto(f"{base_post_url}?img_index={img_index}", wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(600)
         active_media_url = _extract_active_media_url(page)
         if not active_media_url or active_media_url in seen:
@@ -498,7 +498,7 @@ def scrape_feed(
     """
     with authenticated_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://www.instagram.com/", wait_until="domcontentloaded")
+        page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(2000)
 
         if _is_login_or_checkpoint(page.url):
@@ -525,7 +525,7 @@ def scrape_followers(
     with authenticated_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
         profile_url = f"https://www.instagram.com/{username.strip().strip('/')}/"
-        page.goto(profile_url, wait_until="domcontentloaded")
+        page.goto(profile_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(2000)
 
         if _is_login_or_checkpoint(page.url):
@@ -680,7 +680,7 @@ def scrape_following(
     with authenticated_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
         profile_url = f"https://www.instagram.com/{username.strip().strip('/')}/"
-        page.goto(profile_url, wait_until="domcontentloaded")
+        page.goto(profile_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(2000)
 
         if _is_login_or_checkpoint(page.url):

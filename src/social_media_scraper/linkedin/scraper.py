@@ -56,6 +56,8 @@ class LinkedInScraper:
             # New session
             self._context = await self._browser.new_context()
 
+        # Set longer default timeout (2 minutes)
+        self._context.set_default_timeout(120000)
         self._page = await self._context.new_page()
         logger.info("Browser initialized")
 

@@ -27,6 +27,9 @@ dependencies = [
     # LinkedIn
     "requests>=2.31",
     "lxml>=4.9",
+    # Lead Generation (Phase 2)
+    "openai>=1.0",
+    "volcengine-python-sdk[ark]>=5.0.23",
 ]
 
 [project.scripts]

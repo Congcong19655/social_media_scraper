@@ -9,6 +9,7 @@ Combined scraper for Xiaohongshu, Instagram, and LinkedIn in a single CLI tool.
 - Date filtering for Xiaohongshu and Instagram posts
 - JSON output only (organized by account)
 - Preserves all original scraper logic
+- Built-in lead generation with LLM (Doubao/ByteDance Ark)
 
 ## Requirements
 
@@ -18,14 +19,24 @@ Combined scraper for Xiaohongshu, Instagram, and LinkedIn in a single CLI tool.
 
 ## Installation
 
-1. Clone or create the project:
+No package installation required - run directly from source code via the entry point `run.py`.
+
+1. Clone the project:
 ```bash
 cd social-media-scraper
 ```
 
-2. Install Python dependencies:
+2. Install Python dependencies (use `uv` for best results):
 ```bash
 uv sync
+```
+
+If you don't have uv, you can use pip with a virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install --upgrade pip
+pip install pydantic python-dotenv click loguru aiofiles aiohttp pandas PyExecJS retry opencv-python numpy qrcode openpyxl playwright beautifulsoup4 requests lxml openai volcengine-python-sdk[ark]
 ```
 
 3. Install Node.js dependencies:
@@ -35,7 +46,11 @@ npm install
 
 4. Install Playwright browsers:
 ```bash
+# If using uv
 uv run playwright install chromium
+
+# If not using uv, activate your virtual environment first then:
+# playwright install chromium
 ```
 
 5. Copy `.env.example` to `.env`:
@@ -49,13 +64,13 @@ Login to each platform once to save credentials:
 
 ```bash
 # Login to Xiaohongshu (saves cookies to .env)
-uv run social-media-scraper login-xiaohongshu
+uv run run.py login-xiaohongshu
 
 # Login to Instagram (saves persistent session)
-uv run social-media-scraper login-instagram
+uv run run.py login-instagram
 
 # Login to LinkedIn (saves persistent session)
-uv run social-media-scraper login-linkedin
+uv run run.py login-linkedin
 ```
 
 Follow the interactive prompts - scan QR code / login manually in the browser, then press Enter to save the session.
@@ -77,12 +92,12 @@ Account Name,instagram_handle,xiaohongshu_user_id,https://www.linkedin.com/in/pr
 ## Usage
 
 ```bash
-uv run social-media-scraper scrape \
-  --accounts accounts/your_accounts.csv \
+uv run run.py scrape \
+  --accounts accounts/example.csv \
   --output data/ \
-  --from-date 2024-01-01 \
-  --to-date 2024-12-31 \
-  [--download-media]
+  --from-date 2025-04-01 \
+  --to-date 2025-12-31 \
+  --download-media
 ```
 
 Options:
@@ -91,6 +106,55 @@ Options:
 - `--from-date`: Only include posts on or after this date (YYYY-MM-DD, optional)
 - `--to-date`: Only include posts on or before this date (YYYY-MM-DD, optional)
 - `--download-media`: Download images/videos (optional, saves to `media/`)
+
+## Generate Leads
+
+After scraping, you can generate lead insights using the built-in Doubao/LLM processor:
+
+```bash
+uv run run.py generate-leads \
+  --input data/ \
+  --output leads/ \
+  --from-date 2025-04-01 \
+  --to-date 2025-12-31 \
+  [--account "Account Name"] \
+  [--no-json]
+```
+
+Options:
+- `--input`: Input directory with scraped JSON data (usually `data/`, required)
+- `--output`: Output directory for lead results (usually `leads/`, required)
+- `--from-date`: Filter content after this date (YYYY-MM-DD, optional)
+- `--to-date`: Filter content before this date (YYYY-MM-DD, optional)
+- `--account`: Only process a specific account (for testing, optional)
+- `--no-json`: Don't save JSON output, only markdown (optional)
+
+**Note:** You need to configure `DOUBAO_API_KEY` and `DOUBAO_ENDPOINT` in your `.env` file for lead generation.
+
+## End-to-End Pipeline
+
+You can run the complete pipeline (clean + scrape + generate leads) in one command:
+
+```bash
+uv run run.py pipeline \
+  --accounts accounts/example.csv \
+  --from-date 2025-04-01 \
+  --to-date 2025-12-31 \
+  --download-media \
+  [--no-clean]
+```
+
+Options:
+- `--accounts`: Path to your accounts CSV (required)
+- `--from-date`: Start date (YYYY-MM-DD, optional)
+- `--to-date`: End date (YYYY-MM-DD, optional)
+- `--download-media`: Download images/videos (optional)
+- `--no-clean`: Skip cleaning data/media folders before run (optional)
+
+This will:
+1. Clean up `data/` and `media/` folders (unless `--no-clean`)
+2. Scrape all accounts
+3. Generate lead summaries with LLM
 
 ## Output Structure
 
@@ -121,7 +185,8 @@ src/social_media_scraper/
 ├── output.py           # JSON output handling
 ├── xiaohongshu/        # Xiaohongshu scraper (imported from Spider_XHS)
 ├── instagram/          # Instagram scraper (imported from social_listening)
-└── linkedin/           # LinkedIn scraper (imported from linkedin_scraper)
+├── linkedin/           # LinkedIn scraper (imported from linkedin_scraper)
+└── lead_generator/     # LLM-based lead extraction (Doubao/ByteDance Ark)
 ```
 
 ## Notes

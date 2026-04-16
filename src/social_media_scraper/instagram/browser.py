@@ -43,6 +43,7 @@ def persistent_context(session_dir: Path, *, headless: bool = False) -> Iterator
                 "--no-first-run",
             ],
         )
+        context.set_default_timeout(120000)  # 2 minutes default timeout
         try:
             yield context
         finally:
@@ -57,7 +58,7 @@ def authenticated_context(session_dir: Path, *, headless: bool = False) -> Itera
         )
     with persistent_context(session_dir, headless=headless) as context:
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto("https://www.instagram.com/", wait_until="domcontentloaded")
+        page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=120000)
         if not is_logged_in(page):
             raise BrowserSessionError(
                 "Saved session is not currently logged in. Instagram redirected to login or checkpoint."
@@ -87,11 +88,11 @@ def _login_site(
     # Login is always headed - you need to interact
     with persistent_context(session_dir) as context:
         page = context.pages[0] if context.pages else context.new_page()
-        page.goto(login_url, wait_until="domcontentloaded")
+        page.goto(login_url, wait_until="domcontentloaded", timeout=120000)
         print(f"A browser window is open for {platform_name} login.")
         print("Log in manually, finish any checkpoint prompts, then press Enter here to save the session.")
         input()
-        page.goto(home_url, wait_until="domcontentloaded")
+        page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
         if not _is_logged_in(page, login_markers, "Log in"):
             raise BrowserSessionError(
                 f"{platform_name} session was not saved. You may still be on the login, challenge, or checkpoint page."
