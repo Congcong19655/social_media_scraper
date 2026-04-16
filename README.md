@@ -59,7 +59,6 @@ graph TD
       - [Scrape Instagram Followers](#scrape-instagram-followers)
       - [Scrape Instagram Following](#scrape-instagram-following)
       - [Merge All New Leads to Accounts CSV](#merge-all-new-leads-to-accounts-csv)
-      - [Convert Single Lead File to CSV](#convert-single-lead-file-to-csv)
   - [Directory Structure](#directory-structure)
   - [Output Structure](#output-structure)
   - [Project Structure](#project-structure)
@@ -204,12 +203,12 @@ Create a CSV file (or use `accounts/example.csv`):
 
 ```csv
 name,instagram,xiaohongshu,linkedin
-Account Name,instagram_handle,xiaohongshu_user_id,https://www.linkedin.com/in/profile
+Account Name,instagram_handle,xiaohongshu_url, linkedin_id
 ```
 
 - `name`: Account name (required, used for output directory)
 - `instagram`: Instagram username (optional, leave empty to skip)
-- `xiaohongshu`: Xiaohongshu user ID or URL (optional, leave empty to skip)
+- `xiaohongshu`: Xiaohongshu URL (optional, leave empty to skip)
 - `linkedin`: LinkedIn profile URL (optional, leave empty to skip)
 
 ## Primary Usage
@@ -345,15 +344,6 @@ This will:
 - Merge them into `accounts/leads.csv`
 - Use username as name when name is unknown
 - Avoid duplicates
-
-#### Convert Single Lead File to CSV
-
-```bash
-uv run run.py convert-leads-to-csv \
-  --leads-file new_leads/new_connections_xxx.json \
-  --existing-csv accounts/example.csv \
-  --output-csv accounts/leads.csv
-```
 
 ## Directory Structure
 
