@@ -20,10 +20,12 @@ graph TD
     A1[Scrape LinkedIn Connections]
     A2[Scrape Instagram Followers]
     A3[Scrape Instagram Following]
+    A5[Compare with Existing Connections<br/>Identify New Leads]
     A4[Merge to Accounts CSV]
-    A1 --> A4
-    A2 --> A4
-    A3 --> A4
+    A1 --> A5
+    A2 --> A5
+    A3 --> A5
+    A5 --> A4
     A4 --> A
     end
 
