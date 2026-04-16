@@ -1,4 +1,8 @@
-"""LinkedIn Scraper - Async Playwright-based scraper for LinkedIn."""
+"""LinkedIn Scraper - Async Playwright-based scraper for LinkedIn.
+
+This module is based on linkedin_scraper: https://github.com/joeyism/linkedin_scraper
+Licensed under Apache License 2.0.
+"""
 
 # Version
 __version__ = "3.1.2"

@@ -19,14 +19,12 @@ Combined scraper for Xiaohongshu, Instagram, and LinkedIn in a single CLI tool.
 
 ## Installation
 
-No package installation required - run directly from source code via the entry point `run.py`.
-
 1. Clone the project:
 ```bash
 cd social-media-scraper
 ```
 
-2. Install Python dependencies (use `uv` for best results):
+1. Install Python dependencies (use `uv` for best results):
 ```bash
 uv sync
 ```
@@ -196,6 +194,15 @@ src/social_media_scraper/
 - If scraping fails for one platform/account, it continues with the next
 - Sessions persist between runs, you don't need to login every time
 
+## Acknowledgments
+
+This project incorporates code from the following open-source projects:
+
+- **Spider_XHS** (Xiaohongshu scraper): https://github.com/cv-cat/Spider_XHS - MIT License
+- **linkedin_scraper** (LinkedIn scraper): https://github.com/joeyism/linkedin_scraper - Apache License 2.0
+
 ## License
 
-Same as original individual repositories.
+This project follows the licenses of the incorporated components:
+- Xiaohongshu scraper portion: MIT License
+- LinkedIn scraper portion: Apache License 2.0
